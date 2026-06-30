@@ -18,6 +18,23 @@ export class ApiError extends Error {
   }
 }
 
+// FastAPI returns `detail` as a string (HTTPException) or an array of field
+// errors (422 validation). Flatten both into a readable message.
+function formatError(data: any, fallback: string): string {
+  const d = data?.detail ?? data?.message;
+  if (typeof d === "string") return d;
+  if (Array.isArray(d)) {
+    return d
+      .map((e) => {
+        const field = Array.isArray(e?.loc) ? e.loc[e.loc.length - 1] : "";
+        return field ? `${field}: ${e?.msg}` : e?.msg;
+      })
+      .filter(Boolean)
+      .join("; ");
+  }
+  return fallback || "Request failed";
+}
+
 interface ApiOptions extends RequestInit {
   /** internal: prevents infinite refresh loops */
   _retried?: boolean;
@@ -58,8 +75,7 @@ export async function api<T = any>(path: string, options: ApiOptions = {}): Prom
   const data = text ? JSON.parse(text) : null;
 
   if (!res.ok) {
-    const detail = data?.detail || data?.message || res.statusText;
-    throw new ApiError(res.status, typeof detail === "string" ? detail : "Request failed");
+    throw new ApiError(res.status, formatError(data, res.statusText));
   }
   return data as T;
 }
