@@ -1,0 +1,57 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: aseticle-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-aseticle}
+      MYSQL_USER: ${MYSQL_USER:-aseticle}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-aseticle}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpassword}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+    container_name: aseticle-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql+aiomysql://${MYSQL_USER:-aseticle}:${MYSQL_PASSWORD:-aseticle}@db:3306/${MYSQL_DATABASE:-aseticle}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-ZmDfcTF7_60GrrY167zsiPd67pEvs0aGOv2oasOM1Pg=}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:49513,http://localhost:3000}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      ENV: ${ENV:-development}
+      SERPAPI_KEY: ${SERPAPI_KEY:-}
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        API_PROXY_TARGET: http://backend:8080
+    container_name: aseticle-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      # server-side: Next.js rewrites proxy /api -> backend over the compose network
+      API_PROXY_TARGET: http://backend:8080
+    ports:
+      - "${FRONTEND_PORT:-49513}:3000"
+
+volumes:
+  db_data:
