@@ -50,7 +50,20 @@ jobs:
         run: cp .env.example .env
 
       - name: Build and start the stack
-        run: docker compose up -d --build
+        run: |
+          # Retry to absorb transient image-registry errors (e.g. Docker Hub 500s).
+          for attempt in 1 2 3; do
+            echo "::group::compose up (attempt $attempt)"
+            if docker compose up -d --build; then
+              echo "::endgroup::"; echo "stack started"; exit 0
+            fi
+            echo "::endgroup::"
+            echo "attempt $attempt failed; tearing down and retrying..."
+            docker compose down -v || true
+            sleep 15
+          done
+          echo "failed to start the stack after 3 attempts" >&2
+          exit 1
 
       - name: Wait for MySQL to be healthy
         run: |
