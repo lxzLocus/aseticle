@@ -1,0 +1,161 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # 1. Build both Docker images (with layer caching). Proves the images build.
+  build:
+    name: Build ${{ matrix.service }} image
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: backend
+            context: ./backend
+          - service: frontend
+            context: ./frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: false
+          load: true
+          tags: aseticle-${{ matrix.service }}:ci
+          # frontend bakes the proxy target into the Next.js routes manifest at build time
+          build-args: |
+            API_PROXY_TARGET=http://backend:8080
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.service }},mode=max
+
+  # 2. Bring the full stack up via docker compose and smoke-test it.
+  smoke-test:
+    name: docker compose smoke test
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare environment
+        run: cp .env.example .env
+
+      - name: Build and start the stack
+        run: docker compose up -d --build
+
+      - name: Wait for MySQL to be healthy
+        run: |
+          for i in $(seq 1 40); do
+            status=$(docker inspect --format '{{.State.Health.Status}}' aseticle-db 2>/dev/null || echo "starting")
+            echo "db health: $status"
+            [ "$status" = "healthy" ] && exit 0
+            sleep 3
+          done
+          echo "MySQL did not become healthy in time" >&2
+          docker compose logs db
+          exit 1
+
+      - name: Wait for backend to answer
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/api/health >/dev/null 2>&1; then
+              echo "backend healthy"; exit 0
+            fi
+            echo "waiting for backend... ($i)"; sleep 3
+          done
+          echo "backend did not become healthy" >&2
+          docker compose logs backend
+          exit 1
+
+      - name: End-to-end checks (auth + CSRF + arXiv search)
+        run: |
+          set -e
+          # register -> stores auth + csrf cookies
+          curl -fsS -c cookies.txt -X POST http://localhost:8080/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{"email":"ci@example.com","username":"ciuser","password":"password123"}' >/dev/null
+          echo "register OK"
+
+          # authenticated arXiv search returns results
+          count=$(curl -fsS -b cookies.txt "http://localhost:8080/api/search?q=transformer&max_results=2" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['count'])")
+          echo "search returned $count results"
+          [ "$count" -ge 1 ]
+
+          # CSRF: state-changing request without the token must be rejected (403)
+          code=$(curl -s -o /dev/null -w "%{http_code}" -b cookies.txt -X PUT \
+            http://localhost:8080/api/settings -H "Content-Type: application/json" \
+            -d '{"search_source":"arxiv"}')
+          echo "settings update without CSRF -> $code"
+          [ "$code" = "403" ]
+
+          # frontend proxy serves the app
+          curl -fsS -o /dev/null http://localhost:49513
+          echo "frontend OK"
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  # 3. Publish images to GitHub Container Registry on pushes to main.
+  publish:
+    name: Push images to GHCR
+    runs-on: ubuntu-latest
+    needs: smoke-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - service: backend
+            context: ./backend
+          - service: frontend
+            context: ./frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}-${{ matrix.service }}
+          tags: |
+            type=sha
+            type=raw,value=latest
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            API_PROXY_TARGET=http://backend:8080
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.service }},mode=max
