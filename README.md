@@ -14,20 +14,28 @@ Academic paper search with citation-aware ranking and on-demand LLM translation.
 ## Architecture
 
 ```
-frontend (Next.js 14)  ──/api/* rewrite──▶  backend (FastAPI)  ──▶  MySQL
-                                                  │
-                                                  ├─ arXiv API (free)
-                                                  ├─ Semantic Scholar (free)
-                                                  └─ SerpApi / Google Scholar (optional)
+frontend (Next.js 14) ─/api/* rewrite─▶ backend (FastAPI) ─▶ MySQL
+                                              │
+                                              └─▶ proxy daemon (tinyproxy) ─▶ arXiv API
+                                                                            ─▶ Semantic Scholar
+                                                                            ─▶ SerpApi / Google Scholar
+                                                                            ─▶ IEEE / ACM (paywalled)
 ```
 
 The browser only talks to the frontend origin; Next.js proxies `/api/*` to the
 backend, keeping auth cookies and CSRF tokens same-origin.
 
+Outbound paper-fetching is routed through a **forward-proxy daemon**. Run that
+daemon inside a network that can reach paywalled venues (e.g. a university
+network) and point `OUTBOUND_PROXY_URL` at it — the rest of the stack can live
+anywhere. Set `OUTBOUND_PROXY_URL=` (empty) to connect directly. The LLM
+translator does **not** use this proxy (it calls the user's own endpoint).
+
 | Path        | Stack                          |
 |-------------|--------------------------------|
 | `frontend/` | Next.js 14, React 18, Radix UI |
 | `backend/`  | FastAPI, SQLAlchemy (async), aiomysql |
+| `proxy/`    | tinyproxy (outbound forward proxy) |
 | `db`        | MySQL 8                        |
 
 ## Quick start

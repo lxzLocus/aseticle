@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     # Optional global SerpApi key (users can also supply their own)
     SERPAPI_KEY: str | None = None
 
+    # Outbound forward proxy for paper-fetching requests (arXiv / Semantic
+    # Scholar / SerpApi / publisher pages). Empty = connect directly.
+    # e.g. http://proxy:8888  (the bundled tinyproxy daemon)
+    OUTBOUND_PROXY_URL: str | None = None
+
     @property
     def cors_origins_list(self) -> List[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]

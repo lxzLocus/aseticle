@@ -19,6 +19,15 @@ services:
       timeout: 5s
       retries: 20
 
+  proxy:
+    build:
+      context: ./proxy
+    container_name: aseticle-proxy
+    restart: unless-stopped
+    # No host port needed — only the backend reaches it over the compose network.
+    expose:
+      - "8888"
+
   backend:
     build:
       context: ./backend
@@ -26,6 +35,8 @@ services:
     restart: unless-stopped
     depends_on:
       db:
+        condition: service_healthy
+      proxy:
         condition: service_healthy
     environment:
       DATABASE_URL: mysql+aiomysql://${MYSQL_USER:-aseticle}:${MYSQL_PASSWORD:-aseticle}@db:3306/${MYSQL_DATABASE:-aseticle}
@@ -35,6 +46,9 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       ENV: ${ENV:-development}
       SERPAPI_KEY: ${SERPAPI_KEY:-}
+      # Route outbound paper-fetching through the proxy daemon. Set empty to
+      # connect directly, or point at a proxy inside your institution's network.
+      OUTBOUND_PROXY_URL: ${OUTBOUND_PROXY_URL:-http://proxy:8888}
     ports:
       - "8080:8080"
 

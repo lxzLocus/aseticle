@@ -6,7 +6,7 @@ for general users; arXiv links found here are still freely accessible.
 """
 import re
 
-import httpx
+from app.core.http import outbound_client
 
 SERPAPI_URL = "https://serpapi.com/search"
 
@@ -32,7 +32,7 @@ async def search(query: str, api_key: str, max_results: int = 30) -> list[dict]:
         "api_key": api_key,
         "num": min(max_results, 20),
     }
-    async with httpx.AsyncClient() as client:
+    async with outbound_client() as client:
         resp = await client.get(SERPAPI_URL, params=params, timeout=30)
         resp.raise_for_status()
         data = resp.json()

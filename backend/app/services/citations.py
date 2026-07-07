@@ -3,6 +3,8 @@ import asyncio
 
 import httpx
 
+from app.core.http import outbound_client
+
 S2_BASE = "https://api.semanticscholar.org/graph/v1"
 _FIELDS = "citationCount,venue"
 
@@ -31,7 +33,7 @@ async def enrich_arxiv(papers: list[dict]) -> None:
     """
     sem = asyncio.Semaphore(3)
 
-    async with httpx.AsyncClient() as client:
+    async with outbound_client() as client:
         async def _one(p: dict) -> None:
             arxiv_id = p.get("_arxiv_id")
             if not arxiv_id:

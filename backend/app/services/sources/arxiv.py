@@ -7,7 +7,8 @@ import re
 from datetime import datetime
 
 import feedparser
-import httpx
+
+from app.core.http import outbound_client
 
 ARXIV_API = "https://export.arxiv.org/api/query"
 
@@ -40,7 +41,7 @@ async def search(query: str, max_results: int = 30) -> list[dict]:
         "sortBy": "relevance",
         "sortOrder": "descending",
     }
-    async with httpx.AsyncClient(follow_redirects=True) as client:
+    async with outbound_client(follow_redirects=True) as client:
         resp = await client.get(ARXIV_API, params=params, timeout=30)
         resp.raise_for_status()
         feed = feedparser.parse(resp.text)
