@@ -11,6 +11,11 @@ Academic paper search with citation-aware ranking and on-demand LLM translation.
 - **User accounts** in MySQL with JWT auth (httpOnly cookies) + CSRF protection.
   BYO API keys are stored **encrypted at rest** (Fernet).
 
+> **Deploying?** See **[DEPLOYMENT.md](DEPLOYMENT.md)** for the full picture of
+> what runs where — frontend/backend/db/proxy on your own machine via compose,
+> and the **relay** on **Vercel** (container deploy via
+> [`Dockerfile.vercel`](Dockerfile.vercel)).
+
 ## Architecture
 
 ```

@@ -1,0 +1,15 @@
+# Vercel deploys only the relay (via Dockerfile.vercel). Keep the upload small
+# by excluding everything the relay build doesn't need.
+frontend
+backend
+agent
+proxy
+docker-compose.yml
+**/node_modules
+**/.next
+**/__pycache__
+.git
+.git_backup
+.env
+.env.*
+!.env.example

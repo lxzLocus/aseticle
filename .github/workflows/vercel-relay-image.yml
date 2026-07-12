@@ -1,0 +1,76 @@
+name: Relay image (Vercel)
+
+# CI/CD for the Vercel-deployable relay container (Dockerfile.vercel).
+# Builds on every push/PR; publishes to GHCR on main and version tags.
+# Vercel itself builds Dockerfile.vercel on deploy — this image is for pulling
+# elsewhere (compose/other hosts) and for validating the build in CI.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths:
+      - 'relay/**'
+      - 'Dockerfile.vercel'
+      - '.vercelignore'
+      - '.github/workflows/vercel-relay-image.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'relay/**'
+      - 'Dockerfile.vercel'
+      - '.github/workflows/vercel-relay-image.yml'
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+concurrency:
+  group: relay-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Only log in / push on real pushes and tags, not on PRs from forks.
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}-relay
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.vercel
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=relay-vercel
+          cache-to: type=gha,scope=relay-vercel,mode=max
