@@ -28,6 +28,38 @@ services:
     expose:
       - "8888"
 
+  # --- Phone-home relay + agent (opt-in via `--profile relay`) ---
+  # For a restricted network where you cannot open inbound ports. In production
+  # the relay runs on a public/reachable host and the agent runs inside the
+  # restricted network; both are addressed purely by env (URL + tokens), so they
+  # can also be reached over a Tailscale mesh.
+  relay:
+    build:
+      context: ./relay
+    container_name: aseticle-relay
+    restart: unless-stopped
+    profiles: ["relay"]
+    environment:
+      RELAY_CLIENT_TOKEN: ${RELAY_CLIENT_TOKEN:-dev-client-token}
+      RELAY_AGENT_TOKEN: ${RELAY_AGENT_TOKEN:-dev-agent-token}
+    ports:
+      - "${RELAY_PORT:-8090}:8080"
+
+  agent:
+    build:
+      context: ./agent
+    container_name: aseticle-agent
+    restart: unless-stopped
+    profiles: ["relay"]
+    depends_on:
+      relay:
+        condition: service_healthy
+    environment:
+      RELAY_URL: ${AGENT_RELAY_URL:-http://relay:8080}
+      RELAY_AGENT_TOKEN: ${RELAY_AGENT_TOKEN:-dev-agent-token}
+      # Optionally have the agent egress via a local upstream proxy:
+      AGENT_UPSTREAM_PROXY: ${AGENT_UPSTREAM_PROXY:-}
+
   backend:
     build:
       context: ./backend
@@ -46,9 +78,14 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       ENV: ${ENV:-development}
       SERPAPI_KEY: ${SERPAPI_KEY:-}
-      # Route outbound paper-fetching through the proxy daemon. Set empty to
-      # connect directly, or point at a proxy inside your institution's network.
+      # Paper-fetch egress. mode: auto|direct|proxy|relay
+      PAPER_FETCH_MODE: ${PAPER_FETCH_MODE:-auto}
+      # proxy mode: forward proxy (tinyproxy; reachable directly or over Tailscale)
       OUTBOUND_PROXY_URL: ${OUTBOUND_PROXY_URL:-http://proxy:8888}
+      # relay mode: phone-home relay (agent daemon in a restricted network)
+      RELAY_URL: ${RELAY_URL:-}
+      RELAY_CLIENT_TOKEN: ${RELAY_CLIENT_TOKEN:-}
+      RELAY_FALLBACK_DIRECT: ${RELAY_FALLBACK_DIRECT:-false}
     ports:
       - "8080:8080"
 

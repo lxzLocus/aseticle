@@ -25,18 +25,50 @@ frontend (Next.js 14) ─/api/* rewrite─▶ backend (FastAPI) ─▶ MySQL
 The browser only talks to the frontend origin; Next.js proxies `/api/*` to the
 backend, keeping auth cookies and CSRF tokens same-origin.
 
-Outbound paper-fetching is routed through a **forward-proxy daemon**. Run that
-daemon inside a network that can reach paywalled venues (e.g. a university
-network) and point `OUTBOUND_PROXY_URL` at it — the rest of the stack can live
-anywhere. Set `OUTBOUND_PROXY_URL=` (empty) to connect directly. The LLM
-translator does **not** use this proxy (it calls the user's own endpoint).
+Outbound paper-fetching egress is selectable via `PAPER_FETCH_MODE`
+(`auto` | `direct` | `proxy` | `relay`) and configured entirely by env, so the
+egress hop can run on a separate machine or be reached over a Tailscale mesh.
+The LLM translator never uses these paths (it calls the user's own endpoint).
 
-| Path        | Stack                          |
-|-------------|--------------------------------|
-| `frontend/` | Next.js 14, React 18, Radix UI |
-| `backend/`  | FastAPI, SQLAlchemy (async), aiomysql |
-| `proxy/`    | tinyproxy (outbound forward proxy) |
-| `db`        | MySQL 8                        |
+| Path        | Stack                          | Role |
+|-------------|--------------------------------|------|
+| `frontend/` | Next.js 14, React 18, Radix UI | UI |
+| `backend/`  | FastAPI, SQLAlchemy (async), aiomysql | API |
+| `proxy/`    | tinyproxy | `proxy` mode: forward proxy |
+| `relay/`    | FastAPI | `relay` mode: public rendezvous hub |
+| `agent/`    | Python (httpx) | `relay` mode: phone-home fetch daemon |
+| `db`        | MySQL 8 | user store |
+
+### Paper-fetch egress modes
+
+- **`direct`** — the backend connects straight out.
+- **`proxy`** — via the `proxy` forward-proxy daemon. Put it inside a network
+  that reaches paywalled venues (IEEE/ACM) and set
+  `OUTBOUND_PROXY_URL=http://<host-or-tailscale-ip>:8888`. No app changes.
+- **`relay`** — for a restricted network with **no inbound and no port
+  forwarding**. A **relay** runs on a reachable host; an **agent daemon** inside
+  the restricted network dials *out* to the relay (long-poll), fetches each job
+  locally, and returns the result. The backend submits fetch jobs to the relay.
+
+```
+backend ──POST /fetch──▶ relay (public) ◀──GET /agent/next (outbound)── agent (restricted net) ──▶ arXiv / IEEE / ACM
+```
+
+Security: two bearer tokens (`RELAY_CLIENT_TOKEN` for backend↔relay,
+`RELAY_AGENT_TOKEN` for agent↔relay). Every relay endpoint rejects
+missing/invalid tokens — nothing is open. If the agent is offline the backend
+errors cleanly, or falls back to direct when `RELAY_FALLBACK_DIRECT=true`.
+
+Enable relay mode locally:
+
+```bash
+# in .env:  PAPER_FETCH_MODE=relay  RELAY_URL=http://relay:8080
+docker compose --profile relay up -d --build
+```
+
+In production the `relay` and `agent` typically run on different machines than
+`frontend`/`backend`; point `RELAY_URL` (backend→relay) and the agent's
+`RELAY_URL` at the relay's address (a public URL or a Tailscale IP).
 
 ## Quick start
 

@@ -36,10 +36,33 @@ class Settings(BaseSettings):
     # Optional global SerpApi key (users can also supply their own)
     SERPAPI_KEY: str | None = None
 
+    # How the backend fetches papers:
+    #   auto   - relay if RELAY_URL set, else proxy if OUTBOUND_PROXY_URL set, else direct
+    #   direct - connect straight out
+    #   proxy  - via OUTBOUND_PROXY_URL (forward proxy, e.g. tinyproxy over Tailscale)
+    #   relay  - via the phone-home relay (agent daemon in a restricted network)
+    PAPER_FETCH_MODE: str = "auto"
+
     # Outbound forward proxy for paper-fetching requests (arXiv / Semantic
     # Scholar / SerpApi / publisher pages). Empty = connect directly.
     # e.g. http://proxy:8888  (the bundled tinyproxy daemon)
     OUTBOUND_PROXY_URL: str | None = None
+
+    # Relay (phone-home) — used when PAPER_FETCH_MODE resolves to "relay".
+    RELAY_URL: str | None = None
+    RELAY_CLIENT_TOKEN: str | None = None
+    # If the relay/agent is unavailable, fall back to a direct connection.
+    RELAY_FALLBACK_DIRECT: bool = False
+
+    def resolved_fetch_mode(self) -> str:
+        mode = (self.PAPER_FETCH_MODE or "auto").lower()
+        if mode != "auto":
+            return mode
+        if self.RELAY_URL:
+            return "relay"
+        if self.OUTBOUND_PROXY_URL:
+            return "proxy"
+        return "direct"
 
     @property
     def cors_origins_list(self) -> List[str]:

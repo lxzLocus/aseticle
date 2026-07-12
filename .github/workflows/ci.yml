@@ -19,6 +19,12 @@ jobs:
             context: ./backend
           - service: frontend
             context: ./frontend
+          - service: proxy
+            context: ./proxy
+          - service: relay
+            context: ./relay
+          - service: agent
+            context: ./agent
     steps:
       - uses: actions/checkout@v4
 
