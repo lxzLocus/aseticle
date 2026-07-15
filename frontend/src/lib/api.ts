@@ -139,6 +139,23 @@ export const settingsApi = {
     api<User>("/settings", { method: "PUT", body: JSON.stringify(body) }),
 };
 
+export interface HealthStatus {
+  online: boolean;
+  backend: boolean;
+  db: boolean;
+  egress: {
+    mode: string;
+    online: boolean | null;
+    detail: string;
+    agent_online?: boolean;
+    pending_jobs?: number | null;
+  };
+}
+
+export const healthApi = {
+  status: () => api<HealthStatus>("/health/status"),
+};
+
 export const translateApi = {
   translate: (text: string, target_lang = "Japanese") =>
     api<{ translated: string; model: string }>("/translate", {

@@ -4,6 +4,7 @@ import { Button, Flex, Switch, Text } from "@radix-ui/themes";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/AuthContext";
 import { useThemeMode } from "@/app/providers";
+import HealthStatus from "@/features/layout/HealthStatus";
 
 export default function NavBar() {
   const { user, logout } = useAuth();
@@ -36,6 +37,7 @@ export default function NavBar() {
 
         {user ? (
           <>
+            <HealthStatus />
             <Text size="2">{user.username}</Text>
             <Button variant="soft" size="2" onClick={() => router.push("/settings")}>
               Settings

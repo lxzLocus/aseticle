@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, search, settings as settings_router, translate
+from app.api import auth, health, search, settings as settings_router, translate
 from app.core.config import settings
 from app.db.database import init_db
 
@@ -25,6 +25,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(health.router)
 app.include_router(settings_router.router)
 app.include_router(search.router)
 app.include_router(translate.router)
