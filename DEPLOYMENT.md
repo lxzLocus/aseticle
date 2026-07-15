@@ -50,6 +50,45 @@ docker compose up --build
 
 ---
 
+## 1b. 本番: GHCR のイメージを pull して起動(ビルドなし)
+
+サーバー上では **ソースをビルドせず、CI が GHCR に push したイメージを pull** して
+起動できます。専用の [`docker-compose.prod.yml`](docker-compose.prod.yml) を使います。
+
+- CI(`.github/workflows/ci.yml`)が `main` push 時に
+  `ghcr.io/lxzlocus/aseticle-{backend,frontend,proxy,agent}:latest`(と `:sha`)を publish。
+- relay は [`vercel-relay-image.yml`](.github/workflows/vercel-relay-image.yml) が
+  `ghcr.io/lxzlocus/aseticle-relay` を publish。
+- 本番 compose は **frontend のポートだけ**をホストに公開し、`backend`/`db`/`proxy`
+  は内部ネットワーク限定(ブラウザは frontend 経由の `/api` だけを見る)。
+
+```bash
+# サーバー上(例: /opt/docker/aseticle)
+cp .env.prod.example .env          # MYSQL_PASSWORD / JWT_SECRET / ENCRYPTION_KEY を必ず設定
+#   JWT_SECRET:     openssl rand -hex 32
+#   ENCRYPTION_KEY: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+# GHCR パッケージが private の場合のみログイン(read:packages 権限の PAT):
+#   echo <PAT> | docker login ghcr.io -u lxzLocus --password-stdin
+# （または GitHub の Packages 設定で各イメージを public にする）
+
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+- 公開ポート: `FRONTEND_PORT`(既定 49513)。ホストの空きポートに合わせて変更可
+  (例: `FRONTEND_PORT=8090`)。既存サービスと衝突しない値にしてください。
+- TLS はサーバー側の**リバースプロキシで終端**し、frontend ポートへ流します。
+  HTTPS 配信時は `.env` で **`COOKIE_SECURE=true`** と
+  `CORS_ORIGINS=https://<あなたのドメイン>` を設定。
+- 更新は `docker compose -f docker-compose.prod.yml pull && ... up -d`。
+  特定ビルドに固定するなら `.env` の `TAG` を commit SHA に。
+
+> `backend` / `db` はホストにポートを公開しません(安全・ポート衝突回避)。デバッグで
+> 必要なときだけ compose に `ports:` を足してください。
+
+---
+
 ## 2. 論文取得の3モード(`PAPER_FETCH_MODE`)
 
 backend が外部サイトへどう出ていくかを env で切替えます。

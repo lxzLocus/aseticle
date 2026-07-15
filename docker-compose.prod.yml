@@ -1,0 +1,87 @@
+# Production deploy — pulls prebuilt images from GHCR (no local build).
+# Images are published by GitHub Actions (.github/workflows/ci.yml) on push to main.
+#
+#   cp .env.prod.example .env      # set strong JWT_SECRET / ENCRYPTION_KEY / DB password
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Only the frontend is published to the host; backend / db / proxy stay on the
+# internal network. Put your TLS-terminating reverse proxy in front of the
+# frontend port and set COOKIE_SECURE=true.
+
+x-images: &image_prefix ${ASETICLE_IMAGE:-ghcr.io/lxzlocus/aseticle}
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: aseticle-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-aseticle}
+      MYSQL_USER: ${MYSQL_USER:-aseticle}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  proxy:
+    image: ${ASETICLE_IMAGE:-ghcr.io/lxzlocus/aseticle}-proxy:${TAG:-latest}
+    container_name: aseticle-proxy
+    restart: unless-stopped
+    expose:
+      - "8888"
+
+  backend:
+    image: ${ASETICLE_IMAGE:-ghcr.io/lxzlocus/aseticle}-backend:${TAG:-latest}
+    container_name: aseticle-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      proxy:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql+aiomysql://${MYSQL_USER:-aseticle}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE:-aseticle}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env}
+      ENV: production
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:49513}
+      PAPER_FETCH_MODE: ${PAPER_FETCH_MODE:-auto}
+      OUTBOUND_PROXY_URL: ${OUTBOUND_PROXY_URL:-http://proxy:8888}
+      RELAY_URL: ${RELAY_URL:-}
+      RELAY_CLIENT_TOKEN: ${RELAY_CLIENT_TOKEN:-}
+      RELAY_FALLBACK_DIRECT: ${RELAY_FALLBACK_DIRECT:-false}
+      SERPAPI_KEY: ${SERPAPI_KEY:-}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/api/health').status==200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    image: ${ASETICLE_IMAGE:-ghcr.io/lxzlocus/aseticle}-frontend:${TAG:-latest}
+    container_name: aseticle-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    # The frontend image is built with API_PROXY_TARGET=http://backend:8080, so
+    # it proxies /api/* to the backend service over this network.
+    ports:
+      # Host port only for the frontend; pick one free on your host.
+      - "${FRONTEND_PORT:-49513}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  db_data:
