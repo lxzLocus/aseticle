@@ -1,6 +1,5 @@
 "use client";
 
-import { Flex, HoverCard, Text } from "@radix-ui/themes";
 import { useEffect, useState } from "react";
 import { healthApi, HealthStatus as Health } from "@/lib/api";
 
@@ -8,17 +7,22 @@ const POLL_MS = 20000;
 
 type Dot = "green" | "red" | "gray";
 
-function Circle({ color }: { color: Dot }) {
-  const bg = color === "green" ? "#30a46c" : color === "red" ? "#e5484d" : "#8b8d98";
+function dotColor(c: Dot): string {
+  return c === "green" ? "var(--accent)" : c === "red" ? "var(--danger)" : "var(--faint)";
+}
+
+function Circle({ c, size = 7, glow = true }: { c: Dot; size?: number; glow?: boolean }) {
   return (
     <span
+      aria-hidden
       style={{
         display: "inline-block",
-        width: 9,
-        height: 9,
+        width: size,
+        height: size,
         borderRadius: "50%",
-        background: bg,
-        boxShadow: color === "green" ? "0 0 5px #30a46c" : "none",
+        flexShrink: 0,
+        background: dotColor(c),
+        boxShadow: c === "green" && glow ? "0 0 6px var(--accent)" : "none",
       }}
     />
   );
@@ -27,6 +31,7 @@ function Circle({ color }: { color: Dot }) {
 export default function HealthStatus() {
   const [health, setHealth] = useState<Health | null>(null);
   const [error, setError] = useState(false);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -50,78 +55,84 @@ export default function HealthStatus() {
   }, []);
 
   const egress = health?.egress;
-  const overall: Dot = error
-    ? "red"
+  const overall: Dot = error ? "red" : !health ? "gray" : health.online ? "green" : "red";
+  const statusText = error
+    ? "オフライン"
     : !health
-    ? "gray"
+    ? "確認中"
     : health.online
-    ? "green"
-    : "red";
-  const egressDot: Dot =
-    egress == null ? "gray" : egress.online ? "green" : "red";
-
-  const label = error
-    ? "offline"
-    : egress
-    ? `${egress.mode}`
-    : "…";
+    ? "オンライン"
+    : "一部オフライン";
 
   return (
-    <HoverCard.Root openDelay={100}>
-      <HoverCard.Trigger>
-        <Flex align="center" gap="2" style={{ cursor: "default" }}>
-          <Circle color={overall} />
-          <Text size="1" color="gray">
-            {label}
-          </Text>
-        </Flex>
-      </HoverCard.Trigger>
-      <HoverCard.Content size="1" style={{ maxWidth: 260 }}>
-        <Flex direction="column" gap="2">
-          <Text size="2" weight="bold">
-            System status
-          </Text>
+    <div
+      style={{ position: "relative", display: "flex", alignItems: "center" }}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        aria-label={`システム状態: ${statusText}`}
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        className="icon-btn"
+        style={{ width: 16, height: 16, background: "transparent", padding: 0 }}
+      >
+        <Circle c={overall} />
+      </button>
+      {open && (
+        <div
+          className="card"
+          style={{
+            position: "absolute",
+            top: 22,
+            right: 0,
+            zIndex: 60,
+            width: 232,
+            padding: 12,
+            boxShadow: "0 16px 44px rgba(0,0,0,.35)",
+          }}
+        >
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text)", marginBottom: 9 }}>
+            システム状態
+          </div>
           {error ? (
-            <Text size="1" color="red">
-              Backend unreachable
-            </Text>
+            <div style={{ fontSize: 12, color: "var(--danger)" }}>バックエンドに接続できません</div>
           ) : !health ? (
-            <Text size="1" color="gray">
-              Checking…
-            </Text>
+            <div style={{ fontSize: 12, color: "var(--muted)" }}>確認中…</div>
           ) : (
-            <>
-              <Row ok={health.backend} label="Backend API" />
-              <Row ok={health.db} label="Database" />
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              <Row ok={health.backend} label="バックエンド API" />
+              <Row ok={health.db} label="データベース" />
               <Row
                 ok={!!egress?.online}
-                label={`Egress (${egress?.mode})`}
+                label={`取得経路（${egress?.mode}）`}
                 detail={egress?.detail}
               />
               {egress?.mode === "relay" && (
-                <Text size="1" color="gray">
+                <div style={{ fontSize: 11, color: "var(--faint)", paddingLeft: 15 }}>
                   agent: {egress?.agent_online ? "online" : "offline"}
                   {egress?.pending_jobs != null && ` · queue ${egress.pending_jobs}`}
-                </Text>
+                </div>
               )}
-            </>
+            </div>
           )}
-        </Flex>
-      </HoverCard.Content>
-    </HoverCard.Root>
+        </div>
+      )}
+    </div>
   );
 }
 
 function Row({ ok, label, detail }: { ok: boolean; label: string; detail?: string }) {
   return (
-    <Flex align="center" gap="2">
-      <Circle color={ok ? "green" : "red"} />
-      <Text size="1">{label}</Text>
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <Circle c={ok ? "green" : "red"} glow={false} />
+      <span style={{ fontSize: 12, color: "var(--text)" }}>{label}</span>
       {detail && (
-        <Text size="1" color="gray">
-          — {detail}
-        </Text>
+        <span style={{ fontSize: 11, color: "var(--faint)", marginLeft: "auto" }}>{detail}</span>
       )}
-    </Flex>
+    </div>
   );
 }

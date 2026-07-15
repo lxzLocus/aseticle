@@ -2,32 +2,315 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
+/* ============================================================
+   ASEticle design tokens — Open WebUI style, true-gray + mint.
+   Default = dark; [data-theme="light"] overrides.
+   ============================================================ */
+:root,
+:root[data-theme="dark"] {
+  --bg: #171717;
+  --card: #212121;
+  --input: #2a2a2a;
+  --border: rgba(255, 255, 255, 0.08);
+  --hover: rgba(255, 255, 255, 0.055);
+  --text: #ececec;
+  --muted: #9a9a9a;
+  --faint: #868686;
+  --accent: #4f9d78;
+  --accent-soft-bg: rgba(79, 157, 120, 0.16);
+  --accent-soft-text: #7fc4a0;
+  --danger: #e5686c;
+  --danger-soft-bg: rgba(229, 104, 108, 0.14);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
+:root[data-theme="light"] {
+  --bg: #ffffff;
+  --card: #ffffff;
+  --input: #f2f2f2;
+  --border: rgba(0, 0, 0, 0.09);
+  --hover: rgba(0, 0, 0, 0.045);
+  --text: #1c1c1c;
+  --muted: #5f5f5f;
+  --faint: #767676;
+  --accent: #35805e;
+  --accent-soft-bg: rgba(63, 138, 104, 0.12);
+  --accent-soft-text: #2f6d50;
+  --danger: #c0343a;
+  --danger-soft-bg: rgba(192, 52, 58, 0.1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, "Hiragino Sans", "Yu Gothic UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+a {
+  color: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--faint);
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+  opacity: 0.5;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---------------- reusable primitives ---------------- */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.field {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--input);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-family: inherit;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.12s ease;
+}
+.field::placeholder {
+  color: var(--faint);
+}
+.field:focus {
+  border-color: var(--accent);
+}
+
+.label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  transition: filter 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.btn-accent {
+  background: var(--accent);
+  color: #fff;
+  padding: 11px 20px;
+}
+.btn-accent:not(:disabled):hover {
+  filter: brightness(1.08);
+}
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 7px 14px;
+  font-weight: 500;
+  font-size: 12.5px;
+}
+.btn-ghost:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+/* icon-only circular button (avatar, search submit) */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  border-radius: 50%;
+  font-family: inherit;
+  transition: filter 0.12s ease, background 0.12s ease;
+}
+
+/* dropdown menu items */
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 9px;
+  font-size: 13.5px;
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  text-align: left;
+  background: transparent;
+  color: var(--text);
+  font-weight: 500;
+}
+.menu-item:hover {
+  background: var(--hover);
+}
+.menu-item.active {
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-text);
+  font-weight: 600;
+}
+
+/* segment control (color mode) */
+.seg-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 7px 0;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  font-weight: 500;
+  background: transparent;
+  color: var(--muted);
+}
+.seg-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Scholar-style filter rail options */
+.filter-head {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 10px;
+}
+.filter-opt {
+  font-size: 13.5px;
+  color: var(--muted);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  font-family: inherit;
+}
+.filter-opt:hover {
+  color: var(--text);
+}
+.filter-opt.active {
+  color: var(--accent-soft-text);
+  font-weight: 600;
+}
+
+.link-accent {
+  color: var(--accent-soft-text);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.paper-title {
+  color: var(--text);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.paper-title:hover {
+  color: var(--accent-soft-text);
+}
+
+.settings-radio:hover {
+  background: var(--hover);
+}
+
+/* results layout — two columns on desktop, stacked on mobile */
+.results-grid {
+  display: grid;
+  grid-template-columns: 172px 1fr;
+  gap: 44px;
+  align-items: start;
+}
+.results-grid > * {
+  min-width: 0; /* let the content column shrink instead of overflowing */
+}
+.results-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  position: sticky;
+  top: 12px;
+}
+@media (max-width: 760px) {
+  .results-grid {
+    grid-template-columns: 1fr;
+    gap: 22px;
   }
+  .results-rail {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 16px 30px;
+  }
+}
+
+/* chip (suggestions) */
+.chip {
+  padding: 7px 14px;
+  border-radius: 99px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12.5px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.chip:hover {
+  background: var(--hover);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
 }

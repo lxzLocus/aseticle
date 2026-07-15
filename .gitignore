@@ -25,3 +25,6 @@ venv/
 Thumbs.db
 .idea/
 .vscode/
+
+# Design source mockup (bundled, large — kept locally)
+ASEticle-redesign.html

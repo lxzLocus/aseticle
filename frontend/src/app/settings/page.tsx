@@ -1,19 +1,7 @@
 "use client";
 
-import {
-  Badge,
-  Box,
-  Button,
-  Callout,
-  Card,
-  Flex,
-  Heading,
-  RadioGroup,
-  Text,
-  TextField,
-} from "@radix-ui/themes";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useAuth } from "@/features/auth/AuthContext";
 import NavBar from "@/features/layout/NavBar";
 import { ApiError, settingsApi } from "@/lib/api";
@@ -56,105 +44,157 @@ export default function SettingsPage() {
     };
     if (llmKey) body.llm_api_key = llmKey;
     if (serpKey) body.serpapi_key = serpKey;
-
     try {
       const updated = await settingsApi.update(body);
       setUser(updated);
       setLlmKey("");
       setSerpKey("");
-      setMsg("Settings saved.");
+      setMsg("設定を保存しました。");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Save failed");
+      setError(err instanceof ApiError ? err.message : "保存に失敗しました");
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <>
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "var(--bg)" }}>
       <NavBar />
-      <Flex justify="center" mt="6" px="4" pb="9">
-        <Box style={{ width: 560, maxWidth: "100%" }}>
-          <Heading size="6" mb="4">Settings</Heading>
+      <main style={{ flex: 1, overflowY: "auto" }}>
+        <div style={{ maxWidth: 600, margin: "0 auto", padding: "40px 32px 64px" }}>
+          <h1 style={{ margin: "0 0 22px", fontSize: 26, fontWeight: 600, letterSpacing: "-.02em", color: "var(--text)" }}>設定</h1>
 
           {msg && (
-            <Callout.Root color="green" mb="3"><Callout.Text>{msg}</Callout.Text></Callout.Root>
+            <div className="card" style={{ padding: "11px 16px", marginBottom: 16, background: "var(--accent-soft-bg)", border: "none", color: "var(--accent-soft-text)", fontSize: 13 }}>{msg}</div>
           )}
           {error && (
-            <Callout.Root color="red" mb="3"><Callout.Text>{error}</Callout.Text></Callout.Root>
+            <div className="card" style={{ padding: "11px 16px", marginBottom: 16, background: "var(--danger-soft-bg)", border: "none", color: "var(--danger)", fontSize: 13 }}>{error}</div>
           )}
 
-          <Card mb="4">
-            <Flex direction="column" gap="3" p="2">
-              <Heading size="4">Search source</Heading>
-              <RadioGroup.Root value={source} onValueChange={(v) => setSource(v as any)}>
-                <RadioGroup.Item value="arxiv">arXiv (free, no key required)</RadioGroup.Item>
-                <RadioGroup.Item value="scholar">Google Scholar (requires SerpApi key)</RadioGroup.Item>
-              </RadioGroup.Root>
-            </Flex>
-          </Card>
+          {/* search source */}
+          <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+            <h2 style={{ margin: "0 0 14px", fontSize: 15, fontWeight: 600, color: "var(--text)" }}>検索ソース</h2>
+            <Radio
+              checked={source === "arxiv"}
+              onSelect={() => setSource("arxiv")}
+              label="arXiv（無料・キー不要）"
+            />
+            <Radio
+              checked={source === "scholar"}
+              onSelect={() => setSource("scholar")}
+              label="Google Scholar（SerpApi キーが必要）"
+            />
+          </div>
 
-          <Card mb="4">
-            <Flex direction="column" gap="3" p="2">
-              <Flex align="center" gap="2">
-                <Heading size="4">LLM translation (OpenAI-compatible)</Heading>
-                {user.has_llm_key && <Badge color="green">key set</Badge>}
-              </Flex>
-              <Text size="2" color="gray">
-                Works with OpenAI, LM Studio, Ollama, vLLM, etc. Enter the base URL
-                (e.g. http://localhost:1234/v1 or https://api.openai.com/v1).
-              </Text>
-              <Box>
-                <Text size="2" weight="bold">Base URL</Text>
-                <TextField.Root
-                  value={llmBaseUrl}
-                  onChange={(e) => setLlmBaseUrl(e.target.value)}
-                  placeholder="https://api.openai.com/v1"
-                />
-              </Box>
-              <Box>
-                <Text size="2" weight="bold">Model</Text>
-                <TextField.Root
-                  value={llmModel}
-                  onChange={(e) => setLlmModel(e.target.value)}
-                  placeholder="gpt-4o-mini / local-model-name"
-                />
-              </Box>
-              <Box>
-                <Text size="2" weight="bold">API key {user.has_llm_key && "(leave blank to keep)"}</Text>
-                <TextField.Root
-                  type="password"
-                  value={llmKey}
-                  onChange={(e) => setLlmKey(e.target.value)}
-                  placeholder="sk-... (stored encrypted)"
-                />
-              </Box>
-            </Flex>
-          </Card>
+          {/* LLM translation */}
+          <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "var(--text)" }}>LLM 翻訳（OpenAI 互換）</h2>
+              {user.has_llm_key && <Badge>キー設定済</Badge>}
+            </div>
+            <p style={{ margin: "0 0 16px", fontSize: 12.5, color: "var(--muted)", lineHeight: 1.55 }}>
+              OpenAI・LM Studio・Ollama・vLLM などに対応。ベース URL を入力してください。
+            </p>
+            <Field label="ベース URL" value={llmBaseUrl} onChange={setLlmBaseUrl} placeholder="https://api.openai.com/v1" />
+            <Field label="モデル" value={llmModel} onChange={setLlmModel} placeholder="gpt-4o-mini" />
+            <Field
+              label={`API キー${user.has_llm_key ? "（空欄で現状維持）" : ""}`}
+              value={llmKey}
+              onChange={setLlmKey}
+              placeholder="sk-··· （暗号化して保存）"
+              type="password"
+              last
+            />
+          </div>
 
-          <Card mb="4">
-            <Flex direction="column" gap="3" p="2">
-              <Flex align="center" gap="2">
-                <Heading size="4">SerpApi key (Google Scholar)</Heading>
-                {user.has_serpapi_key && <Badge color="green">key set</Badge>}
-              </Flex>
-              <Box>
-                <Text size="2" weight="bold">API key {user.has_serpapi_key && "(leave blank to keep)"}</Text>
-                <TextField.Root
-                  type="password"
-                  value={serpKey}
-                  onChange={(e) => setSerpKey(e.target.value)}
-                  placeholder="stored encrypted"
-                />
-              </Box>
-            </Flex>
-          </Card>
+          {/* SerpApi key */}
+          <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "var(--text)" }}>SerpApi キー（Google Scholar）</h2>
+              {user.has_serpapi_key && <Badge>キー設定済</Badge>}
+            </div>
+            <Field
+              label={`API キー${user.has_serpapi_key ? "（空欄で現状維持）" : ""}`}
+              value={serpKey}
+              onChange={setSerpKey}
+              placeholder="暗号化して保存"
+              type="password"
+              last
+            />
+          </div>
 
-          <Button size="3" onClick={save} disabled={busy}>
-            {busy ? "Saving..." : "Save settings"}
-          </Button>
-        </Box>
-      </Flex>
-    </>
+          <button className="btn btn-accent" onClick={save} disabled={busy}>
+            {busy ? "保存中…" : "設定を保存"}
+          </button>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function Radio({ checked, onSelect, label }: { checked: boolean; onSelect: () => void; label: string }) {
+  return (
+    <label
+      onClick={onSelect}
+      className="settings-radio"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 11,
+        padding: "10px 12px",
+        borderRadius: 10,
+        cursor: "pointer",
+        ...(checked ? { background: "var(--accent-soft-bg)" } : {}),
+        marginBottom: 6,
+      }}
+    >
+      <span
+        style={{
+          width: 18,
+          height: 18,
+          borderRadius: "50%",
+          border: `2px solid ${checked ? "var(--accent)" : "var(--faint)"}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        {checked && <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent)" }} />}
+      </span>
+      <span style={{ fontSize: 14, color: checked ? "var(--text)" : "var(--muted)" }}>{label}</span>
+    </label>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  last,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+  last?: boolean;
+}) {
+  const id = useId();
+  return (
+    <div style={{ marginBottom: last ? 0 : 14 }}>
+      <label className="label" htmlFor={id}>{label}</label>
+      <input id={id} className="field" type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+    </div>
+  );
+}
+
+function Badge({ children }: { children: React.ReactNode }) {
+  return (
+    <span style={{ fontSize: 11, padding: "2px 10px", borderRadius: 999, background: "var(--accent-soft-bg)", color: "var(--accent-soft-text)" }}>
+      {children}
+    </span>
   );
 }

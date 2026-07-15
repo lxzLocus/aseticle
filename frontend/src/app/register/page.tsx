@@ -1,6 +1,5 @@
 "use client";
 
-import { Box, Button, Card, Flex, Heading, Text, TextField } from "@radix-ui/themes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -21,11 +20,11 @@ export default function RegisterPage() {
     e.preventDefault();
     setError(null);
     if (username.trim().length < 3) {
-      setError("Username must be at least 3 characters");
+      setError("ユーザー名は3文字以上にしてください");
       return;
     }
     if (password.length < 8) {
-      setError("Password must be at least 8 characters");
+      setError("パスワードは8文字以上にしてください");
       return;
     }
     setBusy(true);
@@ -33,58 +32,63 @@ export default function RegisterPage() {
       await register(email, username, password);
       router.push("/");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Registration failed");
+      setError(err instanceof ApiError ? err.message : "登録に失敗しました");
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <>
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "var(--bg)" }}>
       <NavBar />
-      <Flex justify="center" mt="9" px="4">
-        <Card style={{ width: 380 }}>
+      <main style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 32px" }}>
+        <div className="card" style={{ width: 380, maxWidth: "100%", borderRadius: 16, padding: 28 }}>
+          <h1 style={{ margin: "0 0 20px", fontSize: 22, fontWeight: 600, color: "var(--text)" }}>アカウント作成</h1>
           <form onSubmit={submit}>
-            <Flex direction="column" gap="3" p="3">
-              <Heading size="5">Create account</Heading>
-              <Box>
-                <Text size="2" weight="bold">Email</Text>
-                <TextField.Root
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  required
-                />
-              </Box>
-              <Box>
-                <Text size="2" weight="bold">Username</Text>
-                <TextField.Root
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                />
-              </Box>
-              <Box>
-                <Text size="2" weight="bold">Password (min 8 chars)</Text>
-                <TextField.Root
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </Box>
-              {error && <Text color="red" size="2">{error}</Text>}
-              <Button type="submit" disabled={busy}>
-                {busy ? "..." : "Register"}
-              </Button>
-              <Text size="2">
-                Have an account? <Link href="/login">Login</Link>
-              </Text>
-            </Flex>
+            <label className="label" htmlFor="reg-email">メール</label>
+            <input
+              id="reg-email"
+              className="field"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              required
+              style={{ marginBottom: 14 }}
+            />
+            <label className="label" htmlFor="reg-username">ユーザー名</label>
+            <input
+              id="reg-username"
+              className="field"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="yu"
+              required
+              style={{ marginBottom: 14 }}
+            />
+            <label className="label" htmlFor="reg-password">パスワード（8文字以上）</label>
+            <input
+              id="reg-password"
+              className="field"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              style={{ marginBottom: error ? 12 : 20 }}
+            />
+            {error && (
+              <p style={{ margin: "0 0 16px", fontSize: 12.5, color: "var(--danger)" }}>{error}</p>
+            )}
+            <button type="submit" className="btn btn-accent" disabled={busy} style={{ width: "100%", padding: 11, marginBottom: 16 }}>
+              {busy ? "…" : "登録"}
+            </button>
           </form>
-        </Card>
-      </Flex>
-    </>
+          <p style={{ margin: 0, fontSize: 13, color: "var(--muted)", textAlign: "center" }}>
+            アカウントがある？ <Link href="/login" className="link-accent">ログイン</Link>
+          </p>
+        </div>
+      </main>
+    </div>
   );
 }
