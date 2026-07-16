@@ -87,6 +87,22 @@ docker compose -f docker-compose.prod.yml up -d
 > `backend` / `db` はホストにポートを公開しません(安全・ポート衝突回避)。デバッグで
 > 必要なときだけ compose に `ports:` を足してください。
 
+### 最小構成(frontend + backend + db だけ)
+
+proxy / relay / agent を使わず、**3サービスだけ**で立ち上げるなら
+[`docker-compose.min.yml`](docker-compose.min.yml) を使います。backend は
+`PAPER_FETCH_MODE=direct`(プロキシ非経由で直接取得)なので proxy 不要です。
+
+```bash
+cp .env.prod.example .env      # MYSQL_PASSWORD / JWT_SECRET / ENCRYPTION_KEY を設定
+docker compose -f docker-compose.min.yml pull
+docker compose -f docker-compose.min.yml up -d
+```
+
+> 初回は MySQL の初期化に時間がかかります。db の healthcheck は**アプリ用ユーザーで
+> TCP 接続**を確認してから healthy になるので、backend はクラッシュ再起動せずに待機します
+> (極端に遅いホストで `up` が db unhealthy で失敗した場合は、少し待って `up` を再実行)。
+
 ---
 
 ## 2. 論文取得の3モード(`PAPER_FETCH_MODE`)

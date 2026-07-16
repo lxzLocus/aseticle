@@ -14,10 +14,13 @@ services:
     volumes:
       - db_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpassword}"]
+      # App-user over TCP: only healthy once MySQL accepts remote app connections.
+      # start_period covers slow first-run init so backend waits, not crash-restarts.
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "${MYSQL_USER:-aseticle}", "-p${MYSQL_PASSWORD:-aseticle}"]
       interval: 5s
       timeout: 5s
       retries: 20
+      start_period: 120s
 
   proxy:
     build:
